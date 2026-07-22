@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- ROUTINE: Outer clock ring representing habits, time management, and consistency -->
+    <path
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M 54,22 A 32,32 0 1,1 53.9,22 Z">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="22"
+                android:startY="22"
+                android:endX="86"
+                android:endY="86"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFE082" />
+                <item android:offset="0.5" android:color="#FFD54F" />
+                <item android:offset="1.0" android:color="#FFB300" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Clock Ticks (Routine & Consistency) -->
+    <path
+        android:strokeColor="#FFD54F"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M 54,12 V 18 M 54,90 V 96 M 12,54 H 18 M 90,54 H 96" />
+
+    <!-- STUDY: Elegant Open Book at the base center -->
+    <!-- Left page outline & beautiful light violet-white gradient fill -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineJoin="round"
+        android:pathData="M 54,74 C 40,74 28,69 28,69 V 45 C 28,45 40,50 54,50 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="28"
+                android:startY="45"
+                android:endX="54"
+                android:endY="74"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#ECE0F8" />
+                <item android:offset="1.0" android:color="#D1C4E9" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Right page outline & crisp white/violet gradient fill -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineJoin="round"
+        android:pathData="M 54,74 C 68,74 80,69 80,69 V 45 C 80,45 68,50 54,50 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="45"
+                android:endX="80"
+                android:endY="74"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFFFFF" />
+                <item android:offset="1.0" android:color="#E8E0F5" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Book Center Seam Shadow -->
+    <path
+        android:strokeColor="#5E35B1"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M 54,50 V 74" />
+
+    <!-- Book text lines (Study concept details) -->
+    <path
+        android:strokeColor="#9575CD"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M 34,57 H 46 M 34,62 H 44 M 62,57 H 74 M 62,62 H 72" />
+
+    <!-- MONEY & SUCCESS: Dynamic upward green-gold trend arrow rising directly from the pages -->
+    <path
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M 36,63 L 48,51 L 58,56 L 70,38 M 62,38 H 70 V 46">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="36"
+                android:startY="38"
+                android:endX="70"
+                android:endY="63"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFD54F" />
+                <item android:offset="0.6" android:color="#00E676" />
+                <item android:offset="1.0" android:color="#00B0FF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Bold Golden Dollar/Money Sign ($) in the center of the book and clock -->
+    <!-- Vertical support stem -->
+    <path
+        android:strokeColor="#FFC107"
+        android:strokeWidth="2"
+        android:strokeLineJoin="round"
+        android:pathData="M 54,28 V 62" />
+
+    <!-- Distinctive rich 3D gold-gradient body of the Dollar Sign -->
+    <path
+        android:strokeColor="#FF8F00"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M 59,37 C 59,32 49,32 49,41 C 49,50 59,48 59,54 C 59,61 49,61 49,56">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="49"
+                android:startY="32"
+                android:endX="59"
+                android:endY="61"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFF59D" />
+                <item android:offset="0.5" android:color="#FBC02D" />
+                <item android:offset="1.0" android:color="#F57F17" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+</vector>
