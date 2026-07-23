@@ -130,12 +130,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
           <div className="p-3 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-800/80 space-y-2">
             <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <RefreshCw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-              Restaurar Dados de Exemplo
+              Restaurar Dados e Trava de Idade (+13)
             </h4>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-              Recarregue dados de demonstração padrão do MEI e das vídeo-aulas do cronograma ENEM.
+              Recarregue dados de demonstração ou refaça a declaração obrigatória de idade (+13).
             </p>
-            <div className="flex gap-2 pt-1">
+            <div className="flex flex-wrap gap-2 pt-1">
               <button
                 type="button"
                 onClick={restoreExampleMeiData}
@@ -149,6 +149,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                 className="px-2.5 py-1 text-xs bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg transition font-medium"
               >
                 Resetar Aulas ENEM
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem('mnanimat_age_verified');
+                    window.location.reload();
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }}
+                className="px-2.5 py-1 text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-lg transition font-medium"
+              >
+                Refazer Trava de Idade (+13)
               </button>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { Navbar } from './components/Navbar';
 import { Onboarding } from './components/Onboarding';
 import { ProfileModal } from './components/ProfileModal';
 import { LegalTermsModal } from './components/LegalTermsModal';
+import { AgeVerificationModal } from './components/AgeVerificationModal';
 
 // FOCOVEST screens
 import { FocoVestDashboard } from './components/FocoVest/FocoVestDashboard';
@@ -70,7 +71,12 @@ export function App() {
   const [isLegalTermsOpen, setIsLegalTermsOpen] = React.useState(false);
 
   if (!userAccount) {
-    return <Onboarding />;
+    return (
+      <>
+        <AgeVerificationModal />
+        <Onboarding />
+      </>
+    );
   }
 
   const renderFocoVestContent = () => {
@@ -255,6 +261,7 @@ export function App() {
       </main>
 
       {/* Global Modals */}
+      <AgeVerificationModal />
       <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
       <LegalTermsModal isOpen={isLegalTermsOpen} onClose={() => setIsLegalTermsOpen(false)} />
     </div>

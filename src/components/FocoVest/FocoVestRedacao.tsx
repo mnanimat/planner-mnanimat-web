@@ -63,12 +63,12 @@ export const FocoVestRedacao: React.FC = () => {
           <div className="space-y-2 max-w-xl">
             <span className="text-[11px] font-extrabold text-emerald-400 tracking-wider uppercase flex items-center gap-1.5 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 w-fit">
               <Sparkles className="w-3.5 h-3.5" />
-              Parceria & Integração Externa
+              Corretor Especializado de IA
             </span>
             <h3 className="text-lg md:text-xl font-extrabold text-white leading-tight">
               Corretor de Redação Especializado (ENEM, FUVEST e ITA)
             </h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
+            <p className="text-xs text-slate-300 dark:text-slate-100 leading-relaxed">
               Utilize o modelo especializado no Chat GPT (OpenAI) para avaliação detalhada das 5 competências do ENEM, critérios da FUVEST e alto nível do ITA.
             </p>
           </div>

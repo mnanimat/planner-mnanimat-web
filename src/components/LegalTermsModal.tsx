@@ -129,10 +129,10 @@ export const LegalTermsModal: React.FC<LegalTermsModalProps> = ({ isOpen, onClos
           <div className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
             <h4 className="font-bold text-sm text-amber-600 dark:text-amber-400 flex items-center gap-2">
               <Shield className="w-4 h-4" />
-              4. Requisito de Idade Mínima (+13 Anos)
+              4. Idade Mínima e Serviços de Terceiros
             </h4>
             <p>
-              O uso deste aplicativo, seus módulos e ferramentas integradas é estritamente destinado a indivíduos com idade mínima de 13 (treze) anos completos (+13 anos). Usuários menores de idade devem contar com o consentimento e orientação de pais ou responsáveis legais.
+              O uso deste site e de todos os seus recursos, módulos, ferramentas ou redirecionamentos é destinado a indivíduos com idade mínima de 13 (treze) anos completos. Caso você seja menor de 18 (dezoito) anos, declara possuir a expressa permissão e supervisão de seus pais ou responsáveis legais para navegar pela plataforma, aceitar estes termos e utilizar quaisquer serviços integrados ou de terceiros (como o ChatGPT).
             </p>
           </div>
         </div>
