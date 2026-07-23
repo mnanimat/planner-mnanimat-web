@@ -109,10 +109,10 @@ export const LegalTermsModal: React.FC<LegalTermsModalProps> = ({ isOpen, onClos
           <div className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
             <h4 className="font-bold text-sm text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
               <Cpu className="w-4 h-4" />
-              2. Assistentes IA Nativos (FocoIA, VidaIA e FinançaIA)
+              2. Assistência de Estudos & Chat GPT (OpenAI)
             </h4>
             <p>
-              As consultas aos assistentes inteligentes utilizam a API do Gemini com fallback offline inteligente. Seus dados privados não são armazenados em servidores externos nem utilizados para treinamento de modelos sem o seu conhecimento.
+              O tutor de estudos funciona de forma 100% offline e local no navegador. A correção avançada de redação é realizada através do direcionamento seguro para o GPT especializado no Chat GPT (OpenAI) para o ENEM, FUVEST e ITA, mantendo a privacidade de dados do usuário e sem armazenamento não autorizado em servidores externos.
             </p>
           </div>
 
@@ -123,6 +123,16 @@ export const LegalTermsModal: React.FC<LegalTermsModalProps> = ({ isOpen, onClos
             </h4>
             <p>
               Esta aplicação não contém scripts de rastreamento comercial, telemetria de anunciantes ou venda de dados a terceiros. Você possui total autonomia para exportar, redefinir ou apagar seus dados quando desejar.
+            </p>
+          </div>
+
+          <div className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
+            <h4 className="font-bold text-sm text-amber-600 dark:text-amber-400 flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              4. Requisito de Idade Mínima (+13 Anos)
+            </h4>
+            <p>
+              O uso deste aplicativo, seus módulos e ferramentas integradas é estritamente destinado a indivíduos com idade mínima de 13 (treze) anos completos (+13 anos). Usuários menores de idade devem contar com o consentimento e orientação de pais ou responsáveis legais.
             </p>
           </div>
         </div>

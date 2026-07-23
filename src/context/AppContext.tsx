@@ -363,36 +363,92 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setChatMessages((prev) => [...prev, userMsg]);
     setIsChatLoading(true);
 
-    try {
-      const res = await fetch('/api/gemini/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: text,
-          systemInstruction: 'Você é um tutor de vestibular altamente didático e empático, focado no ENEM e vestibulares militares/federais como o ITA. Explique com exemplos visuais e conceituais.'
-        })
-      });
-      const data = await res.json();
+    setTimeout(() => {
+      let responseText = '';
+      const query = text.toLowerCase();
+
+      if (query.includes('equação') || query.includes('equacao') || query.includes('vértice') || query.includes('vertice') || query.includes('2º grau')) {
+        responseText = `[Tutor IA Local - Matemática e Álgebra]
+
+Para equações do 2º grau no formato ax² + bx + c = 0:
+
+1. Discriminante (Delta):
+   Δ = b² - 4ac
+
+2. Raízes (Fórmula de Bhaskara):
+   x = (-b ± √Δ) / (2a)
+
+3. Vértice da Parábola (Máximos e Mínimos no ENEM):
+   - X_v = -b / (2a)  (Ponto de máximo ou mínimo no eixo X, ex: quantidade de itens fabricados)
+   - Y_v = -Δ / (4a)  (Valor máximo ou mínimo no eixo Y, ex: lucro máximo ou custo mínimo)
+
+Dica FocoVest: No ENEM, questões de lucro máximo ou altura máxima de projétil sempre pedem o cálculo das coordenadas do vértice V(Xv, Yv)!`;
+      } else if (query.includes('intervenção') || query.includes('intervencao') || query.includes('5 elementos') || query.includes('redação') || query.includes('redacao')) {
+        responseText = `[Tutor IA Local - Redação ENEM]
+
+A Proposta de Intervenção (Competência 5) vale 200 pontos e exige obrigatoriamente os 5 elementos abaixo:
+
+1. AGENTE: Quem executará a medida? (Ex: Ministério da Educação, ONG de alfabetização digital).
+2. AÇÃO: O que será feito? (Ex: Promover oficinas de capacitação e conscientização crítica).
+3. MEIO / MODO: Como será feito? (Ex: Por meio de parcerias com prefeituras e veiculação em mídias comunitárias).
+4. EFEITO / FINALIDADE: Para que serve? (Ex: Com o intuito de mitigar a exclusão digital e promover a cidadania plena).
+5. DETALHAMENTO: Explicação adicional de um dos elementos. (Ex: "Ministério da Educação — órgão responsável pela formulação das políticas nacionais de ensino — ...").
+
+Dica FocoVest: Sempre verifique se o seu detalhamento exemplifica ou especifica o Agente ou a Ação para garantir os 200 pontos completos na C5! Para correções completas com IA, use o botão do ChatGPT no topo do aplicativo!`;
+      } else if (query.includes('mendel') || query.includes('genética') || query.includes('genetica')) {
+        responseText = `[Tutor IA Local - Biologia e Genética]
+
+Leis de Mendel para o ENEM:
+
+• 1ª Lei de Mendel (Monohibridismo / Segregação de Fatores):
+  Cada caráter é determinado por um par de fatores (genes alelos) que se separam na formação dos gametas.
+  - Cruzamento de heterozigotos (Aa x Aa): Proporção Genotípica 1 AA : 2 Aa : 1 aa. Proporção Fenotípica 3 Dominantes : 1 Recessivo.
+
+• 2ª Lei de Mendel (Dihibridismo / Segregação Independente):
+  Alelos de genes diferentes segregam-se independentemente durante a meiose.
+  - Cruzamento di-híbrido (AaBb x AaBb): Proporção Fenotípica clássica 9:3:3:1.`;
+      } else if (query.includes('centrípeta') || query.includes('centripeta') || query.includes('vetor') || query.includes('mecânica') || query.includes('mecanica') || query.includes('ita')) {
+        responseText = `[Tutor IA Local - Física e Mecânica Avançada ITA]
+
+Força Centrípeta e Decomposição Vetorial:
+
+1. Força Centrípeta (F_c):
+   F_c = m · v² / R = m · ω² · R
+   Não é uma "força nova", mas sim a resultante de todas as forças reais que apontam para o centro da trajetória circular.
+
+2. Decomposição Vetorial em Aclives / Curvas Sobre-elevadas (ITA):
+   - N · sin(θ) = m · v² / R (Componente da Normal garantindo o movimento circular)
+   - N · cos(θ) = m · g (Equilíbrio vertical)
+   - Dividindo as equações: tan(θ) = v² / (g · R)
+
+Essa relação permite calcular a velocidade ideal para que um veículo faça a curva sem depender do atrito dos pneus!`;
+      } else {
+        responseText = `[Tutor IA Local - Assistente FocoVest]
+
+Entendi sua pergunta sobre: "${text}"
+
+Orientação Prática de Estudo:
+• Para absorver e dominar essa matéria com eficiência, aplique a Metodologia dos 7 Passos nas suas Trilhas:
+  1. Assistir à aula com atenção plena
+  2. Construir um resumo sintético
+  3. Praticar a autoexplicação
+  4. Resolver a lista de exercícios práticos
+  5. Anotar dúvidas e pontos fracos no Caderno de Erros
+  6. Revisar com repetição espaçada nos Flashcards
+  7. Testar seu tempo e precisão nos Simulados
+
+Se você quiser realizar uma correção completa de redação com o assistente especializado do ChatGPT (OpenAI), acesse o módulo de Redação!`;
+      }
+
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: 'AI',
-        text: data.text || 'Desculpe, ocorreu um erro ao obter resposta do tutor.',
+        text: responseText,
         timestamp: Date.now()
       };
       setChatMessages((prev) => [...prev, aiMsg]);
-    } catch {
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          sender: 'AI',
-          text: 'Erro de conexão local. Verifique os servidores ou continue utilizando as funções offline.',
-          timestamp: Date.now()
-        }
-      ]);
-    } finally {
       setIsChatLoading(false);
-    }
+    }, 400);
   };
 
   const clearChat = () => {
@@ -406,48 +462,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ]);
   };
 
-  // Essay Correction State
+  // Essay Correction State (Offline Local Drafts & ChatGPT Helper)
   const [isEssayCorrecting, setIsEssayCorrecting] = useState(false);
   const correctEssay = async (title: string, text: string) => {
     if (!title.trim() || !text.trim()) return;
     setIsEssayCorrecting(true);
-    try {
-      const prompt = `Corrija a seguinte redação para o vestibular do ENEM. O tema proposto está implícito ou explícito no título: "${title}".
-      
-Texto da redação:
-"${text}"
 
-Forneça uma correção detalhada baseada estritamente nas 5 competências do ENEM (Dê notas de 0 a 200 para cada uma):
-1. Domínio da norma culta
-2. Compreensão do tema e aplicação das áreas de conhecimento
-3. Seleção, relação e interpretação de informações (argumentação)
-4. Demonstração de conhecimento dos mecanismos linguísticos (coesão)
-5. Elaboração de proposta de intervenção
+    setTimeout(() => {
+      const feedbackLocal = `[RASCUNHO SALVO LOCALMENTE]
+Tema: "${title}"
+Total de Palavras: ${text.split(/\s+/).filter(Boolean).length} palavras
 
-Por fim, apresente uma nota total (soma das competências de 0 a 1000) e dê conselhos específicos de reescrita para melhorar a nota.`;
+💡 Seu rascunho de redação foi gravado com sucesso no dispositivo.
+Para obter uma avaliação minuciosa com nota de 0 a 1000 nas 5 Competências do ENEM, FUVEST e ITA, utilize o botão verde do ChatGPT no topo da página. O texto do seu rascunho foi formatado e está pronto para envio!`;
 
-      const res = await fetch('/api/gemini/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt,
-          systemInstruction: 'Você é um corretor oficial da redação do ENEM especializado e detalhista.'
-        })
-      });
-      const data = await res.json();
       const newEssay: Essay = {
         id: Date.now(),
         title,
         text,
-        feedback: data.text || 'Redação corrigida com sucesso.',
+        feedback: feedbackLocal,
         timestamp: Date.now()
       };
       setEssays((prev) => [newEssay, ...prev]);
-    } catch (e) {
-      console.error(e);
-    } finally {
       setIsEssayCorrecting(false);
-    }
+    }, 300);
   };
 
   // User Actions
