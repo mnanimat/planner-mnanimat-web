@@ -3,17 +3,46 @@ import { useApp } from '../../context/AppContext';
 import { StudySubject } from '../../types';
 import { GraduationCap, Plus, Trash2, CheckCircle2, Circle, Filter, Edit3, X } from 'lucide-react';
 
+const BASE_CATEGORIES = [
+  'Matemática',
+  'Física',
+  'Química',
+  'Biologia',
+  'Redação',
+  'Linguagens & Português',
+  'Literatura',
+  'História',
+  'Geografia',
+  'Filosofia',
+  'Sociologia',
+  'Inglês',
+  'Espanhol',
+  'Desenho Técnico (ITA)',
+  'Computação & Algoritmos (ITA)'
+];
+
 export const FocoVestTrilhas: React.FC = () => {
   const { subjects, toggleSubjectStep, addNewSubject, updateSubject, deleteSubject } = useApp();
 
   const [titleInput, setTitleInput] = useState('');
   const [categoryInput, setCategoryInput] = useState('Matemática');
+  const [customCategoryInput, setCustomCategoryInput] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('TODAS');
 
   // Edit Subject State
   const [editingSubject, setEditingSubject] = useState<StudySubject | null>(null);
+  const [editCategoryChoice, setEditCategoryChoice] = useState('Matemática');
+  const [editCustomCategory, setEditCustomCategory] = useState('');
 
-  const categories = ['Matemática', 'Física', 'Química', 'Biologia', 'Redação', 'Linguagens', 'História', 'Geografia'];
+  // Collect all unique categories including custom ones created by user
+  const extraCategories = Array.from(
+    new Set(
+      subjects
+        .map((s) => s.category)
+        .filter((cat) => cat && !BASE_CATEGORIES.includes(cat))
+    )
+  );
+  const filterCategories = [...BASE_CATEGORIES, ...extraCategories];
 
   const filteredSubjects = subjects.filter((s) => {
     if (selectedCategoryFilter === 'TODAS') return true;
@@ -23,14 +52,41 @@ export const FocoVestTrilhas: React.FC = () => {
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!titleInput.trim()) return;
-    addNewSubject(titleInput, categoryInput);
+
+    const finalCategory = categoryInput === 'Outro'
+      ? (customCategoryInput.trim() || 'Outro')
+      : categoryInput;
+
+    addNewSubject(titleInput, finalCategory);
     setTitleInput('');
+    setCategoryInput('Matemática');
+    setCustomCategoryInput('');
+  };
+
+  const handleOpenEditModal = (sub: StudySubject) => {
+    setEditingSubject(sub);
+    const isBase = BASE_CATEGORIES.includes(sub.category);
+    if (isBase) {
+      setEditCategoryChoice(sub.category);
+      setEditCustomCategory('');
+    } else {
+      setEditCategoryChoice('Outro');
+      setEditCustomCategory(sub.category);
+    }
   };
 
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingSubject || !editingSubject.title.trim()) return;
-    updateSubject(editingSubject);
+
+    const finalCategory = editCategoryChoice === 'Outro'
+      ? (editCustomCategory.trim() || 'Outro')
+      : editCategoryChoice;
+
+    updateSubject({
+      ...editingSubject,
+      category: finalCategory
+    });
     setEditingSubject(null);
   };
 
@@ -66,15 +122,31 @@ export const FocoVestTrilhas: React.FC = () => {
           className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
           required
         />
-        <select
-          value={categoryInput}
-          onChange={(e) => setCategoryInput(e.target.value)}
-          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none"
-        >
-          {categories.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
+        
+        <div className="flex flex-col sm:flex-row gap-2">
+          <select
+            value={categoryInput}
+            onChange={(e) => setCategoryInput(e.target.value)}
+            className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none"
+          >
+            {BASE_CATEGORIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+            <option value="Outro">Outro (Digitar matéria...)</option>
+          </select>
+
+          {categoryInput === 'Outro' && (
+            <input
+              type="text"
+              placeholder="Digite a matéria personalizada..."
+              value={customCategoryInput}
+              onChange={(e) => setCustomCategoryInput(e.target.value)}
+              className="bg-slate-950 border border-indigo-500/50 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-400 shadow-inner min-w-[180px]"
+              required
+            />
+          )}
+        </div>
+
         <button
           type="submit"
           className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-indigo-600/20"
@@ -99,7 +171,7 @@ export const FocoVestTrilhas: React.FC = () => {
         >
           Todas
         </button>
-        {categories.map((cat) => (
+        {filterCategories.map((cat) => (
           <button
             key={cat}
             onClick={() => setSelectedCategoryFilter(cat)}
@@ -146,7 +218,7 @@ export const FocoVestTrilhas: React.FC = () => {
 
                 <div className="flex items-center gap-1 self-end md:self-center">
                   <button
-                    onClick={() => setEditingSubject(sub)}
+                    onClick={() => handleOpenEditModal(sub)}
                     className="p-2 text-slate-400 hover:text-amber-400 rounded-xl hover:bg-slate-800 transition"
                     title="Editar Trilha"
                   >
@@ -235,14 +307,26 @@ export const FocoVestTrilhas: React.FC = () => {
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1">Categoria / Disciplina</label>
                 <select
-                  value={editingSubject.category}
-                  onChange={(e) => setEditingSubject({ ...editingSubject, category: e.target.value })}
+                  value={editCategoryChoice}
+                  onChange={(e) => setEditCategoryChoice(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none"
                 >
-                  {categories.map((c) => (
+                  {BASE_CATEGORIES.map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
+                  <option value="Outro">Outro (Digitar matéria...)</option>
                 </select>
+
+                {editCategoryChoice === 'Outro' && (
+                  <input
+                    type="text"
+                    placeholder="Digite a matéria personalizada..."
+                    value={editCustomCategory}
+                    onChange={(e) => setEditCustomCategory(e.target.value)}
+                    className="w-full mt-2 bg-slate-950 border border-indigo-500/50 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-400 shadow-inner"
+                    required
+                  />
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
@@ -267,3 +351,4 @@ export const FocoVestTrilhas: React.FC = () => {
     </div>
   );
 };
+

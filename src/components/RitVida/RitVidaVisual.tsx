@@ -43,6 +43,25 @@ export const RitVidaVisual: React.FC = () => {
   // Drag and Drop state
   const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
 
+  const formatTaskDuration = (task: VisualTask) => {
+    if (task.startTime && task.endTime) {
+      const [sH = 0, sM = 0] = task.startTime.split(':').map((v) => parseInt(v, 10) || 0);
+      const [eH = 0, eM = 0] = task.endTime.split(':').map((v) => parseInt(v, 10) || 0);
+      let diffMins = (eH * 60 + eM) - (sH * 60 + sM);
+      if (diffMins <= 0) diffMins += 24 * 60;
+      const h = Math.floor(diffMins / 60);
+      const m = diffMins % 60;
+      if (h > 0 && m > 0) return `${h}h ${m}m`;
+      if (h > 0) return `${h}h 00m`;
+      return `${m}m`;
+    }
+    const h = Math.floor(task.durationHours);
+    const m = Math.round((task.durationHours - h) * 60);
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h 00m`;
+    return `${m}m`;
+  };
+
   const handleOpenAddModal = (presetHour?: number) => {
     setEditingTask(null);
     setTitle('');
@@ -374,7 +393,7 @@ export const RitVidaVisual: React.FC = () => {
                             </p>
 
                             <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2 pt-1 border-t border-slate-800">
-                              <span>Duração: {task.durationHours}h</span>
+                              <span>Duração: {formatTaskDuration(task)}</span>
                               <span
                                 onClick={() => {
                                   const nextStatus =
