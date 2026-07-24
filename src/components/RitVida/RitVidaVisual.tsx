@@ -34,6 +34,8 @@ export const RitVidaVisual: React.FC = () => {
   const [tag, setTag] = useState('Urgente');
   const [startHour, setStartHour] = useState(8);
   const [endHour, setEndHour] = useState(10);
+  const [startTimeInput, setStartTimeInput] = useState('08:00');
+  const [endTimeInput, setEndTimeInput] = useState('10:00');
   const [durationHours, setDurationHours] = useState(2);
   const [status, setStatus] = useState<'A Fazer' | 'Em Progresso' | 'Concluído'>('A Fazer');
   const [checklistInput, setChecklistInput] = useState('');
@@ -41,13 +43,17 @@ export const RitVidaVisual: React.FC = () => {
   // Drag and Drop state
   const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
 
-  const handleOpenAddModal = () => {
+  const handleOpenAddModal = (presetHour?: number) => {
     setEditingTask(null);
     setTitle('');
     setFunc('Trabalho');
     setTag('Urgente');
-    setStartHour(8);
-    setEndHour(10);
+    const startH = presetHour !== undefined ? presetHour : 8;
+    const endH = Math.min(24, startH + 2);
+    setStartHour(startH);
+    setEndHour(endH);
+    setStartTimeInput(`${startH.toString().padStart(2, '0')}:00`);
+    setEndTimeInput(`${endH.toString().padStart(2, '0')}:00`);
     setDurationHours(2);
     setStatus('A Fazer');
     setChecklistInput('');
@@ -62,6 +68,8 @@ export const RitVidaVisual: React.FC = () => {
     setStartHour(task.startHour);
     setDurationHours(task.durationHours);
     setEndHour(Math.min(24, task.startHour + task.durationHours));
+    setStartTimeInput(task.startTime || `${task.startHour.toString().padStart(2, '0')}:00`);
+    setEndTimeInput(task.endTime || `${Math.min(24, task.startHour + task.durationHours).toString().padStart(2, '0')}:00`);
     setStatus(task.status || 'A Fazer');
 
     const checklistClean = (task.checklistRaw || '')
@@ -100,9 +108,24 @@ export const RitVidaVisual: React.FC = () => {
         .join('|');
     }
 
-    const computedDuration = Math.max(1, endHour - startHour);
-    const startTimeFormatted = `${startHour.toString().padStart(2, '0')}:00`;
-    const endTimeFormatted = `${(endHour % 24).toString().padStart(2, '0')}:00`;
+    // Process typed times
+    const startStr = startTimeInput.trim() || '08:00';
+    const endStr = endTimeInput.trim() || '10:00';
+
+    const [sH = 8, sM = 0] = startStr.split(':').map((v) => parseInt(v, 10) || 0);
+    const [eH = 10, eM = 0] = endStr.split(':').map((v) => parseInt(v, 10) || 0);
+
+    const startMinutesTotal = sH * 60 + sM;
+    let endMinutesTotal = eH * 60 + eM;
+    if (endMinutesTotal <= startMinutesTotal) {
+      endMinutesTotal = startMinutesTotal + 60; // default 1 hour if end time <= start time
+    }
+
+    const calculatedStartHour = Math.min(23, Math.max(0, sH));
+    const computedDuration = Math.max(1, Math.round((endMinutesTotal - startMinutesTotal) / 60));
+
+    const startTimeFormatted = `${sH.toString().padStart(2, '0')}:${sM.toString().padStart(2, '0')}`;
+    const endTimeFormatted = `${eH.toString().padStart(2, '0')}:${eM.toString().padStart(2, '0')}`;
     const dateToday = new Date().toISOString().split('T')[0];
 
     if (editingTask) {
@@ -111,7 +134,7 @@ export const RitVidaVisual: React.FC = () => {
         title,
         function: func,
         tag,
-        startHour,
+        startHour: calculatedStartHour,
         durationHours: computedDuration,
         startTime: startTimeFormatted,
         endTime: endTimeFormatted,
@@ -125,7 +148,7 @@ export const RitVidaVisual: React.FC = () => {
         startTimeFormatted,
         dateToday,
         endTimeFormatted,
-        startHour,
+        calculatedStartHour,
         computedDuration,
         func,
         tag,
@@ -299,10 +322,7 @@ export const RitVidaVisual: React.FC = () => {
                       <Clock className="w-3 h-3" /> {hour.toString().padStart(2, '0')}:00
                     </span>
                     <button
-                      onClick={() => {
-                        setStartHour(hour);
-                        handleOpenAddModal();
-                      }}
+                      onClick={() => handleOpenAddModal(hour)}
                       className="text-[10px] text-slate-500 hover:text-indigo-400 font-semibold opacity-0 group-hover:opacity-100 transition"
                     >
                       + Agendar
@@ -800,63 +820,52 @@ export const RitVidaVisual: React.FC = () => {
                 </div>
               </div>
 
-              {/* Start Hour & End Hour Selection */}
-              <div className="grid grid-cols-3 gap-3 bg-slate-950/60 border border-slate-800/80 p-3 rounded-xl">
+              {/* Start Time & End Time Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-950/60 border border-slate-800/80 p-3.5 rounded-xl">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Horário de Início</label>
-                  <select
-                    value={startHour}
-                    onChange={(e) => {
-                      const newStart = Number(e.target.value);
-                      setStartHour(newStart);
-                      if (newStart >= endHour) {
-                        const newE = Math.min(24, newStart + 1);
-                        setEndHour(newE);
-                        setDurationHours(1);
-                      } else {
-                        setDurationHours(endHour - newStart);
-                      }
-                    }}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
-                  >
-                    {Array.from({ length: 24 }, (_, i) => i).map((h) => (
-                      <option key={h} value={h}>
-                        {h.toString().padStart(2, '0')}:00
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    Hora de Início
+                  </label>
+                  <input
+                    type="time"
+                    value={startTimeInput}
+                    onChange={(e) => setStartTimeInput(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-indigo-500 shadow-inner"
+                    required
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">Digite ex: 08:00</span>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-indigo-400 mb-1">Horário Final (Término)</label>
-                  <select
-                    value={endHour}
-                    onChange={(e) => {
-                      const newEnd = Number(e.target.value);
-                      if (newEnd > startHour) {
-                        setEndHour(newEnd);
-                        setDurationHours(newEnd - startHour);
-                      } else {
-                        const forcedEnd = Math.min(24, startHour + 1);
-                        setEndHour(forcedEnd);
-                        setDurationHours(1);
-                      }
-                    }}
-                    className="w-full bg-slate-900 border border-indigo-500/50 rounded-lg px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-400"
-                  >
-                    {Array.from({ length: 24 }, (_, i) => i + 1).map((h) => (
-                      <option key={h} value={h} disabled={h <= startHour}>
-                        {h.toString().padStart(2, '0')}:00 {h <= startHour ? '(Inválido)' : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-[11px] font-semibold text-indigo-400 mb-1">
+                    Hora de Fim
+                  </label>
+                  <input
+                    type="time"
+                    value={endTimeInput}
+                    onChange={(e) => setEndTimeInput(e.target.value)}
+                    className="w-full bg-slate-900 border border-indigo-500/50 rounded-lg px-2.5 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-indigo-400 shadow-inner"
+                    required
+                  />
+                  <span className="text-[10px] text-indigo-400/80 mt-1 block">Digite ex: 10:00</span>
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-400 mb-1">Duração Calculada</label>
-                  <div className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-indigo-300 flex items-center justify-between">
-                    <span>{Math.max(1, endHour - startHour)}h</span>
-                    <Clock className="w-3 h-3 text-slate-500" />
+                  <div className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs font-extrabold text-indigo-300 flex items-center justify-between">
+                    <span>
+                      {(() => {
+                        const [sH = 8, sM = 0] = startTimeInput.split(':').map((v) => parseInt(v, 10) || 0);
+                        const [eH = 10, eM = 0] = endTimeInput.split(':').map((v) => parseInt(v, 10) || 0);
+                        const diffMins = (eH * 60 + eM) - (sH * 60 + sM);
+                        if (diffMins <= 0) return '1h (Mínima)';
+                        const hrs = Math.floor(diffMins / 60);
+                        const mins = diffMins % 60;
+                        if (mins === 0) return `${hrs}h`;
+                        return `${hrs}h ${mins}m`;
+                      })()}
+                    </span>
+                    <Clock className="w-3.5 h-3.5 text-slate-500" />
                   </div>
                 </div>
               </div>

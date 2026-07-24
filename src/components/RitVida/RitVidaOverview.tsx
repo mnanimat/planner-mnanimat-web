@@ -86,31 +86,31 @@ export const RitVidaOverview: React.FC = () => {
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-2 shadow-md">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-2 shadow-sm dark:shadow-md">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-amber-400 uppercase">Total de Horas</span>
-            <Clock className="w-5 h-5 text-amber-400" />
+            <span className="text-xs font-bold text-amber-500 dark:text-amber-400 uppercase">Total de Horas</span>
+            <Clock className="w-5 h-5 text-amber-500 dark:text-amber-400" />
           </div>
-          <p className="text-3xl font-extrabold text-white">{totalHours.toFixed(1)}h</p>
-          <p className="text-[11px] text-slate-400">Tempo registrado em todas as funções</p>
+          <p className="text-3xl font-extrabold text-amber-500 dark:text-amber-400">{totalHours.toFixed(1)}h</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">Tempo registrado em todas as funções</p>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-2 shadow-md">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-2 shadow-sm dark:shadow-md">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-400 uppercase">Saldo Consolidado</span>
-            <Wallet className="w-5 h-5 text-emerald-400" />
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase">Saldo Consolidado</span>
+            <Wallet className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <p className="text-3xl font-extrabold text-emerald-400">R$ {netBalance.toFixed(2)}</p>
-          <p className="text-[11px] text-slate-400">Balanço de receitas e despesas RITVIDA</p>
+          <p className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">R$ {netBalance.toFixed(2)}</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">Balanço de receitas e despesas RITVIDA</p>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-2 shadow-md">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-2 shadow-sm dark:shadow-md">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-indigo-400 uppercase">Progresso dos Projetos</span>
-            <Briefcase className="w-5 h-5 text-indigo-400" />
+            <span className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase">Progresso dos Projetos</span>
+            <Briefcase className="w-5 h-5 text-purple-600 dark:text-purple-400" />
           </div>
-          <p className="text-3xl font-extrabold text-white">{avgProjectProgress}%</p>
-          <p className="text-[11px] text-slate-400">{projects.length} projetos cadastrados</p>
+          <p className="text-3xl font-extrabold text-purple-600 dark:text-purple-400">{avgProjectProgress}%</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">{projects.length} projetos cadastrados</p>
         </div>
       </div>
 
