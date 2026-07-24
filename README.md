@@ -7,7 +7,7 @@
 This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/c46c18a5-518e-4e7a-b600-450fa43d4457
-**Veja o Resultado: ** https://www.mnanimat.xyz/
+**Veja o Resultado:** https://www.mnanimat.xyz/
 
 ## Run Locally
 
