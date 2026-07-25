@@ -26,7 +26,9 @@ import {
   Circle,
   Filter,
   Layers,
-  ArrowRight
+  ArrowRight,
+  GripVertical,
+  Minus
 } from 'lucide-react';
 
 const MONTH_NAMES_PT = [
@@ -74,7 +76,7 @@ export const RitVidaVisual: React.FC = () => {
   } = useApp();
 
   // Granularities & Layout Views
-  const [timeGranularity, setTimeGranularity] = useState<'DIA' | 'MES' | 'ANO'>('DIA');
+  const [timeGranularity, setTimeGranularity] = useState<'DIA' | 'SEMANA' | 'MES' | 'ANO'>('DIA');
   const [layoutView, setLayoutView] = useState<'TIMELINE' | 'GANTT' | 'KANBAN'>('TIMELINE');
   const [originFilter, setOriginFilter] = useState<'TODOS' | 'FOCOVEST' | 'RITVIDA' | 'MEI'>('TODOS');
 
@@ -103,6 +105,184 @@ export const RitVidaVisual: React.FC = () => {
 
   // Drag State
   const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
+  const [draggedItemIdStr, setDraggedItemIdStr] = useState<string | null>(null);
+  const [overKanbanColumn, setOverKanbanColumn] = useState<string | null>(null);
+  const [overGanttSlot, setOverGanttSlot] = useState<{ itemId: string; hour: number } | null>(null);
+  const [overTimelineHour, setOverTimelineHour] = useState<number | null>(null);
+  const [overWeekDayISO, setOverWeekDayISO] = useState<string | null>(null);
+  const [overMonthDateISO, setOverMonthDateISO] = useState<string | null>(null);
+  const [overYearMonthIdx, setOverYearMonthIdx] = useState<number | null>(null);
+
+  const handleDropKanbanItem = (itemId: string, newStatus: 'A Fazer' | 'Em Progresso' | 'Concluído') => {
+    const item = allUnifiedItems.find((i) => i.id === itemId);
+    if (!item) return;
+
+    if (item.originalType === 'VISUAL_TASK') {
+      const vt = item.rawObject as VisualTask;
+      updateVisualTask({ ...vt, status: newStatus });
+    } else if (item.originalType === 'CRONOGRAMA') {
+      const c = item.rawObject;
+      const shouldBeCompleted = newStatus === 'Concluído';
+      if (c.isCompleted !== shouldBeCompleted) {
+        toggleCustomCronogramaItem(c.id);
+      }
+    } else if (item.originalType === 'PROJECT') {
+      const p = item.rawObject;
+      updateProject({
+        ...p,
+        isCompleted: newStatus === 'Concluído',
+        progressPercentage: newStatus === 'Concluído' ? 100 : newStatus === 'Em Progresso' ? 50 : 0
+      });
+    } else if (item.originalType === 'MEI_INVOICE') {
+      const inv = item.rawObject;
+      updateMeiInvoice({ ...inv, isReceived: newStatus === 'Concluído' });
+    } else if (item.originalType === 'MEI_TX') {
+      const tx = item.rawObject;
+      updateMeiTransaction({ ...tx, status: newStatus === 'Concluído' ? 'Pago' : 'Pendente' });
+    } else if (item.originalType === 'GYM') {
+      const gym = item.rawObject;
+      if ((gym.isCompleted && newStatus !== 'Concluído') || (!gym.isCompleted && newStatus === 'Concluído')) {
+        toggleGymWorkoutStatus(gym.id);
+      }
+    }
+  };
+
+  const handleDropGanttItem = (itemId: string, targetHour: number) => {
+    const item = allUnifiedItems.find((i) => i.id === itemId);
+    if (!item) return;
+
+    const [sH = 8, sM = 0] = (item.startTime || '08:00').split(':').map((v) => parseInt(v, 10) || 0);
+    const [eH = 10, eM = 0] = (item.endTime || '10:00').split(':').map((v) => parseInt(v, 10) || 0);
+
+    let durationMins = (eH * 60 + eM) - (sH * 60 + sM);
+    if (durationMins <= 0) durationMins = 120;
+    const durationHours = Math.max(1, Math.round(durationMins / 60));
+
+    const newStartHour = Math.max(0, Math.min(23, targetHour));
+    const newEndHour = Math.min(24, newStartHour + durationHours);
+
+    const newStartTime = `${newStartHour.toString().padStart(2, '0')}:${sM.toString().padStart(2, '0')}`;
+    const newEndTime = `${newEndHour.toString().padStart(2, '0')}:${sM.toString().padStart(2, '0')}`;
+
+    if (item.originalType === 'VISUAL_TASK') {
+      const vt = item.rawObject as VisualTask;
+      updateVisualTask({
+        ...vt,
+        startHour: newStartHour,
+        durationHours: durationHours,
+        startTime: newStartTime,
+        endTime: newEndTime
+      });
+    } else {
+      if (item.originalType === 'PROJECT') {
+        const p = item.rawObject;
+        updateProject({
+          ...p,
+          targetDateString: item.startDate
+        });
+      }
+    }
+  };
+
+  const handleDropItemToDate = (itemId: string, targetDateISO: string) => {
+    const item = allUnifiedItems.find((i) => i.id === itemId);
+    if (!item) return;
+
+    if (item.originalType === 'VISUAL_TASK') {
+      const vt = item.rawObject as VisualTask;
+      updateVisualTask({
+        ...vt,
+        startDate: targetDateISO,
+        endDate: targetDateISO
+      });
+    } else if (item.originalType === 'PROJECT') {
+      const p = item.rawObject;
+      updateProject({ ...p, targetDateString: targetDateISO });
+    } else if (item.originalType === 'MEI_INVOICE') {
+      const inv = item.rawObject;
+      updateMeiInvoice({ ...inv, dueDate: targetDateISO });
+    } else if (item.originalType === 'MEI_TX') {
+      const tx = item.rawObject;
+      updateMeiTransaction({ ...tx, dateString: targetDateISO });
+    }
+  };
+
+  const handleDropItemToMonth = (itemId: string, year: number, monthIdx: number) => {
+    const targetISO = `${year}-${(monthIdx + 1).toString().padStart(2, '0')}-01`;
+    handleDropItemToDate(itemId, targetISO);
+  };
+
+  const handleDropItemToHour = (itemId: string, targetHour: number, targetDateISO?: string) => {
+    const item = allUnifiedItems.find((i) => i.id === itemId);
+    if (!item) return;
+
+    const [sH = 8, sM = 0] = (item.startTime || '08:00').split(':').map((v) => parseInt(v, 10) || 0);
+    const [eH = 10, eM = 0] = (item.endTime || '10:00').split(':').map((v) => parseInt(v, 10) || 0);
+
+    let durationMins = (eH * 60 + eM) - (sH * 60 + sM);
+    if (durationMins <= 0) durationMins = 60;
+
+    const newStartHour = Math.max(0, Math.min(23, targetHour));
+    const newStartMinsTotal = newStartHour * 60 + sM;
+    const newEndMinsTotal = newStartMinsTotal + durationMins;
+
+    const newEndH = Math.min(24, Math.floor(newEndMinsTotal / 60));
+    const newEndM = newEndMinsTotal % 60;
+
+    const newStartTime = `${newStartHour.toString().padStart(2, '0')}:${sM.toString().padStart(2, '0')}`;
+    const newEndTime = `${newEndH.toString().padStart(2, '0')}:${newEndM.toString().padStart(2, '0')}`;
+    const computedDurationHours = Math.max(1, Math.round(durationMins / 60));
+
+    const newDate = targetDateISO || item.startDate;
+
+    if (item.originalType === 'VISUAL_TASK') {
+      const vt = item.rawObject as VisualTask;
+      updateVisualTask({
+        ...vt,
+        startDate: newDate,
+        endDate: newDate,
+        startHour: newStartHour,
+        durationHours: computedDurationHours,
+        startTime: newStartTime,
+        endTime: newEndTime
+      });
+    } else if (item.originalType === 'PROJECT') {
+      updateProject({ ...item.rawObject, targetDateString: newDate });
+    } else if (item.originalType === 'MEI_INVOICE') {
+      updateMeiInvoice({ ...item.rawObject, dueDate: newDate });
+    } else if (item.originalType === 'MEI_TX') {
+      updateMeiTransaction({ ...item.rawObject, dateString: newDate });
+    }
+  };
+
+  const handleAdjustItemDuration = (itemId: string, deltaMinutes: number) => {
+    const item = allUnifiedItems.find((i) => i.id === itemId);
+    if (!item) return;
+
+    const [sH = 8, sM = 0] = (item.startTime || '08:00').split(':').map((v) => parseInt(v, 10) || 0);
+    const [eH = 10, eM = 0] = (item.endTime || '10:00').split(':').map((v) => parseInt(v, 10) || 0);
+
+    let currentMins = (eH * 60 + eM) - (sH * 60 + sM);
+    if (currentMins <= 0) currentMins = 60;
+
+    const newMins = Math.max(15, currentMins + deltaMinutes);
+    const newEndMinsTotal = sH * 60 + sM + newMins;
+
+    const newEndH = Math.min(24, Math.floor(newEndMinsTotal / 60));
+    const newEndM = newEndMinsTotal % 60;
+
+    const newEndTimeFormatted = `${newEndH.toString().padStart(2, '0')}:${newEndM.toString().padStart(2, '0')}`;
+    const computedDurationHours = Math.max(1, Math.round(newMins / 60));
+
+    if (item.originalType === 'VISUAL_TASK') {
+      const vt = item.rawObject as VisualTask;
+      updateVisualTask({
+        ...vt,
+        endTime: newEndTimeFormatted,
+        durationHours: computedDurationHours
+      });
+    }
+  };
 
   // Helper date format
   const formatBRDate = (isoStr: string) => {
@@ -432,6 +612,39 @@ export const RitVidaVisual: React.FC = () => {
     });
   };
 
+  // Week Navigation Helpers for SEMANA
+  const getWeekDays = (refDateISO: string) => {
+    const ref = new Date(refDateISO + 'T12:00:00');
+    const dayOfWeek = ref.getDay(); // 0 = Dom, 1 = Seg ...
+    const sunday = new Date(ref);
+    sunday.setDate(sunday.getDate() - dayOfWeek);
+
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(sunday);
+      d.setDate(d.getDate() + i);
+      const iso = d.toISOString().split('T')[0];
+      days.push({
+        dateISO: iso,
+        dayName: WEEKDAYS_PT[i],
+        dayNum: d.getDate(),
+        monthName: MONTH_NAMES_PT[d.getMonth()],
+        isToday: iso === todayISO,
+        isSelected: iso === selectedDateISO
+      });
+    }
+    return days;
+  };
+
+  const handleStepWeek = (deltaWeeks: number) => {
+    const curDate = new Date(selectedDateISO + 'T12:00:00');
+    curDate.setDate(curDate.getDate() + deltaWeeks * 7);
+    const nextISO = curDate.toISOString().split('T')[0];
+    setSelectedDateISO(nextISO);
+    setCurrentMonth(curDate.getMonth());
+    setCurrentYear(curDate.getFullYear());
+  };
+
   // Date Navigation Helpers for DIA
   const handleStepDay = (deltaDays: number) => {
     const curDate = new Date(selectedDateISO + 'T12:00:00');
@@ -546,7 +759,7 @@ export const RitVidaVisual: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Time Granularity Selector (Dia, Mês, Ano) */}
+            {/* Time Granularity Selector (Dia, Semana, Mês, Ano) */}
             <div className="bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-1 shadow-inner">
               <button
                 onClick={() => setTimeGranularity('DIA')}
@@ -557,6 +770,16 @@ export const RitVidaVisual: React.FC = () => {
                 }`}
               >
                 Dia
+              </button>
+              <button
+                onClick={() => setTimeGranularity('SEMANA')}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition ${
+                  timeGranularity === 'SEMANA'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                Semana
               </button>
               <button
                 onClick={() => setTimeGranularity('MES')}
@@ -850,13 +1073,53 @@ export const RitVidaVisual: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Date Range & Time Badge */}
-                        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800/60">
-                          <span className="flex items-center gap-1 font-mono text-[11px]">
-                            <Clock className="w-3.5 h-3.5 text-indigo-500" />
-                            {item.startTime} - {item.endTime} ({formatTaskDuration(item.startTime, item.endTime)})
-                          </span>
-                          <span className="font-semibold text-[11px]">
+                        {/* Date Range & Time Badge + Duration Controls */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="flex items-center gap-1 font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                              <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                              {item.startTime} - {item.endTime} ({formatTaskDuration(item.startTime, item.endTime)})
+                            </span>
+
+                            {/* Duration Adjuster Controls */}
+                            {item.originalType === 'VISUAL_TASK' && (
+                              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-lg p-0.5 text-[10px] font-bold">
+                                <span className="text-slate-400 px-1 font-mono">Duração:</span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAdjustItemDuration(item.id, -30);
+                                  }}
+                                  className="px-1.5 py-0.5 bg-white dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-700 dark:text-slate-200 font-extrabold transition"
+                                  title="Diminuir 30 min"
+                                >
+                                  -30m
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAdjustItemDuration(item.id, 30);
+                                  }}
+                                  className="px-1.5 py-0.5 bg-white dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-700 dark:text-slate-200 font-extrabold transition"
+                                  title="Aumentar 30 min"
+                                >
+                                  +30m
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAdjustItemDuration(item.id, 60);
+                                  }}
+                                  className="px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900 rounded font-extrabold transition"
+                                  title="Aumentar 1 hora"
+                                >
+                                  +1h
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          <span className="font-semibold text-[11px] shrink-0">
                             📅 {formatBRDate(item.startDate)}
                             {item.endDate && item.endDate !== item.startDate && ` a ${formatBRDate(item.endDate)}`}
                           </span>
@@ -873,7 +1136,7 @@ export const RitVidaVisual: React.FC = () => {
                   <span className="flex items-center gap-1.5">
                     <Clock className="w-4 h-4 text-indigo-500" /> Grade Horária (24h)
                   </span>
-                  <span className="text-[10px] text-slate-400 font-normal">Clique para Agendar</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Arraste tarefas ou clique</span>
                 </h3>
 
                 <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
@@ -886,10 +1149,31 @@ export const RitVidaVisual: React.FC = () => {
                       return item.startTime?.startsWith(hStr);
                     });
 
+                    const isOver = overTimelineHour === hour;
+
                     return (
                       <div
                         key={hour}
-                        className="group flex items-start gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800/80 hover:border-indigo-500/40 transition"
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          setOverTimelineHour(hour);
+                        }}
+                        onDragLeave={() => setOverTimelineHour(null)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const droppedId = e.dataTransfer.getData('text/plain') || draggedItemIdStr;
+                          if (droppedId) {
+                            handleDropItemToHour(droppedId, hour, selectedDateISO);
+                          }
+                          setOverTimelineHour(null);
+                          setDraggedItemIdStr(null);
+                        }}
+                        className={`group flex items-start gap-2 p-2 rounded-xl transition ${
+                          isOver
+                            ? 'bg-indigo-500/10 border-2 border-indigo-500'
+                            : 'bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800/80 hover:border-indigo-500/40'
+                        }`}
                       >
                         <span className="text-[10px] font-bold font-mono text-slate-400 w-10 pt-0.5">
                           {hour.toString().padStart(2, '0')}:00
@@ -901,12 +1185,47 @@ export const RitVidaVisual: React.FC = () => {
                               {hourTasks.map((ht) => (
                                 <div
                                   key={ht.id}
-                                  className={`text-[11px] font-bold p-1.5 rounded-lg border flex items-center justify-between ${getOriginBadgeClass(
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.setData('text/plain', ht.id);
+                                    setDraggedItemIdStr(ht.id);
+                                  }}
+                                  onDragEnd={() => setDraggedItemIdStr(null)}
+                                  className={`text-[11px] font-bold p-1.5 rounded-lg border flex items-center justify-between cursor-grab active:cursor-grabbing ${getOriginBadgeClass(
                                     ht.moduleOrigin
                                   )}`}
                                 >
-                                  <span className="truncate">{ht.title}</span>
-                                  <span className="text-[9px] opacity-80">{ht.startTime}</span>
+                                  <div className="flex items-center gap-1 truncate">
+                                    <GripVertical className="w-3 h-3 opacity-60" />
+                                    <span className="truncate">{ht.title}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <span className="text-[9px] opacity-80">{ht.startTime}</span>
+                                    {ht.originalType === 'VISUAL_TASK' && (
+                                      <div className="flex items-center gap-0.5 ml-1">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleAdjustItemDuration(ht.id, -30);
+                                          }}
+                                          className="px-1 py-0.2 bg-black/10 dark:bg-white/10 hover:bg-black/20 rounded text-[9px]"
+                                          title="-30m"
+                                        >
+                                          -30m
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleAdjustItemDuration(ht.id, 30);
+                                          }}
+                                          className="px-1 py-0.2 bg-black/10 dark:bg-white/10 hover:bg-black/20 rounded text-[9px]"
+                                          title="+30m"
+                                        >
+                                          +30m
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -930,112 +1249,528 @@ export const RitVidaVisual: React.FC = () => {
           {/* LAYOUT VIEW: GANTT */}
           {layoutView === 'GANTT' && (
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm dark:shadow-md space-y-4 overflow-x-auto">
-              <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <BarChart2 className="w-5 h-5 text-indigo-500" /> Fluxo de Execução - GANTT (06:00 às 22:00)
-              </h3>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <BarChart2 className="w-5 h-5 text-indigo-500" /> Fluxo de Execução - GANTT Interativo (06:00 às 22:00)
+                </h3>
+                <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 rounded-full flex items-center gap-1.5 w-fit">
+                  <GripVertical className="w-3.5 h-3.5" /> Arraste as barras para reposicionar os horários
+                </span>
+              </div>
 
-              <div className="min-w-[700px] space-y-2">
-                <div className="flex items-center text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800 pb-2">
-                  <span className="w-48 shrink-0">Tarefa / Módulo</span>
+              <div className="min-w-[800px] space-y-3">
+                {/* Timeline Header (16 columns: 6h to 21h) */}
+                <div className="flex items-center text-[11px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800 pb-2">
+                  <span className="w-52 shrink-0 flex items-center gap-1.5 px-2">
+                    <span>Tarefa / Origem</span>
+                  </span>
                   <div className="flex-1 grid grid-cols-16 gap-1 text-center font-mono">
                     {Array.from({ length: 16 }, (_, i) => i + 6).map((h) => (
-                      <span key={h}>{h}h</span>
+                      <span key={h} className="py-1 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-200/50 dark:border-slate-800/50">
+                        {h}h
+                      </span>
                     ))}
                   </div>
                 </div>
 
-                {itemsForSelectedDay.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-2 py-2 border-b border-slate-100 dark:border-slate-800/50 text-xs"
-                  >
-                    <div className="w-48 shrink-0 truncate font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      {getOriginIcon(item.moduleOrigin)}
-                      <span className="truncate">{item.title}</span>
-                    </div>
-
-                    <div className="flex-1 bg-slate-100 dark:bg-slate-950 h-7 rounded-xl relative overflow-hidden border border-slate-200 dark:border-slate-800 flex items-center px-2">
-                      <div
-                        className={`absolute h-5 rounded-lg text-[10px] font-bold text-white flex items-center px-2 shadow-sm ${
-                          item.moduleOrigin === 'FOCOVEST'
-                            ? 'bg-indigo-600'
-                            : item.moduleOrigin === 'MEI'
-                            ? 'bg-amber-600'
-                            : 'bg-emerald-600'
-                        }`}
-                        style={{
-                          left: '10%',
-                          width: '70%'
-                        }}
-                      >
-                        <span className="truncate">{item.startTime} - {item.endTime}</span>
-                      </div>
-                    </div>
+                {itemsForSelectedDay.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-slate-400">
+                    Nenhuma tarefa agendada para {formatBRDate(selectedDateISO)} nesta visualização.
                   </div>
-                ))}
+                ) : (
+                  itemsForSelectedDay.map((item) => {
+                    const ganttMin = 6;
+                    const ganttMax = 22;
+                    const totalGanttHours = ganttMax - ganttMin; // 16
+
+                    const [sH = 8, sM = 0] = (item.startTime || '08:00').split(':').map(Number);
+                    const [eH = 10, eM = 0] = (item.endTime || '10:00').split(':').map(Number);
+
+                    const startVal = sH + sM / 60;
+                    let endVal = eH + eM / 60;
+                    if (endVal <= startVal) endVal = startVal + 1;
+
+                    const clampedStart = Math.max(ganttMin, Math.min(ganttMax, startVal));
+                    const clampedEnd = Math.max(clampedStart + 0.5, Math.min(ganttMax, endVal));
+
+                    const leftPct = ((clampedStart - ganttMin) / totalGanttHours) * 100;
+                    const widthPct = Math.max(5, ((clampedEnd - clampedStart) / totalGanttHours) * 100);
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-2 py-2 border-b border-slate-100 dark:border-slate-800/50 text-xs hover:bg-slate-50/50 dark:hover:bg-slate-950/30 rounded-xl transition px-1"
+                      >
+                        <div className="w-52 shrink-0 truncate font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between pr-2">
+                          <div className="flex items-center gap-2 truncate">
+                            {getOriginIcon(item.moduleOrigin)}
+                            <span className="truncate">{item.title}</span>
+                          </div>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${getOriginBadgeClass(item.moduleOrigin)}`}>
+                            {item.moduleOrigin}
+                          </span>
+                        </div>
+
+                        {/* GANTT Track with 16 droppable hour slots */}
+                        <div className="flex-1 bg-slate-100 dark:bg-slate-950 h-9 rounded-xl relative border border-slate-200 dark:border-slate-800 flex items-center px-1">
+                          {/* Hour droppable slots background */}
+                          <div className="absolute inset-0 grid grid-cols-16 gap-0.5 p-0.5 pointer-events-auto">
+                            {Array.from({ length: 16 }, (_, i) => i + 6).map((h) => {
+                              const isOver = overGanttSlot?.itemId === item.id && overGanttSlot?.hour === h;
+                              return (
+                                <div
+                                  key={h}
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = 'move';
+                                    setOverGanttSlot({ itemId: item.id, hour: h });
+                                  }}
+                                  onDragLeave={() => setOverGanttSlot(null)}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    const droppedId = e.dataTransfer.getData('text/plain') || draggedItemIdStr;
+                                    if (droppedId) {
+                                      handleDropGanttItem(droppedId, h);
+                                    }
+                                    setOverGanttSlot(null);
+                                    setDraggedItemIdStr(null);
+                                  }}
+                                  className={`h-full rounded-md transition ${
+                                    isOver ? 'bg-indigo-500/30 border border-indigo-500' : 'hover:bg-slate-200/50 dark:hover:bg-slate-800/40'
+                                  }`}
+                                  title={`Mover para as ${h}:00`}
+                                />
+                              );
+                            })}
+                          </div>
+
+                          {/* Draggable Task Bar */}
+                          <div
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', item.id);
+                              e.dataTransfer.effectAllowed = 'move';
+                              setDraggedItemIdStr(item.id);
+                            }}
+                            onDragEnd={() => setDraggedItemIdStr(null)}
+                            className={`absolute h-7 rounded-lg text-[10px] font-bold text-white flex items-center justify-between px-2 shadow-md cursor-grab active:cursor-grabbing transition-all z-10 hover:scale-[1.01] ${
+                              item.moduleOrigin === 'FOCOVEST'
+                                ? 'bg-indigo-600 hover:bg-indigo-500'
+                                : item.moduleOrigin === 'MEI'
+                                ? 'bg-amber-600 hover:bg-amber-500'
+                                : 'bg-emerald-600 hover:bg-emerald-500'
+                            } ${draggedItemIdStr === item.id ? 'opacity-50 ring-2 ring-white scale-95' : ''}`}
+                            style={{
+                              left: `${leftPct}%`,
+                              width: `${widthPct}%`
+                            }}
+                            title="Arraste para mover o horário"
+                          >
+                            <div className="flex items-center gap-1 truncate">
+                              <GripVertical className="w-3 h-3 opacity-80 shrink-0" />
+                              <span className="truncate">{item.startTime} - {item.endTime}</span>
+                            </div>
+
+                            {/* Duration Adjust Buttons on Gantt Bar */}
+                            <div className="flex items-center gap-0.5 ml-1 shrink-0">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAdjustItemDuration(item.id, -30);
+                                }}
+                                className="px-1 py-0.2 bg-black/20 hover:bg-black/40 rounded text-[9px] font-extrabold"
+                                title="Reduzir 30 min"
+                              >
+                                -
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAdjustItemDuration(item.id, 30);
+                                }}
+                                className="px-1 py-0.2 bg-black/20 hover:bg-black/40 rounded text-[9px] font-extrabold"
+                                title="Aumentar 30 min"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           )}
 
           {/* LAYOUT VIEW: KANBAN */}
           {layoutView === 'KANBAN' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {(['A Fazer', 'Em Progresso', 'Concluído'] as const).map((columnStatus) => {
-                const columnItems = itemsForSelectedDay.filter((i) => i.status === columnStatus);
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <GripVertical className="w-3.5 h-3.5 text-indigo-500" />
+                  Arraste e solte os cartões entre as colunas para alterar o status da tarefa.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {(['A Fazer', 'Em Progresso', 'Concluído'] as const).map((columnStatus) => {
+                  const columnItems = itemsForSelectedDay.filter((i) => i.status === columnStatus);
+                  const isColumnOver = overKanbanColumn === columnStatus;
+
+                  return (
+                    <div
+                      key={columnStatus}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        setOverKanbanColumn(columnStatus);
+                      }}
+                      onDragLeave={() => setOverKanbanColumn(null)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const droppedId = e.dataTransfer.getData('text/plain') || draggedItemIdStr;
+                        if (droppedId) {
+                          handleDropKanbanItem(droppedId, columnStatus);
+                        }
+                        setOverKanbanColumn(null);
+                        setDraggedItemIdStr(null);
+                      }}
+                      className={`bg-slate-50 dark:bg-slate-950 border transition-all rounded-3xl p-4 space-y-3 ${
+                        isColumnOver
+                          ? 'border-indigo-500 ring-2 ring-indigo-500/30 bg-indigo-500/5 dark:bg-indigo-500/10'
+                          : 'border-slate-200 dark:border-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+                        <h4 className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <Circle className={`w-3.5 h-3.5 ${
+                            columnStatus === 'Concluído'
+                              ? 'text-emerald-500'
+                              : columnStatus === 'Em Progresso'
+                              ? 'text-amber-500'
+                              : 'text-indigo-500'
+                          }`} />
+                          {columnStatus} ({columnItems.length})
+                        </h4>
+                      </div>
+
+                      <div className="space-y-3 min-h-[220px]">
+                        {columnItems.length === 0 ? (
+                          <div className="h-32 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl flex items-center justify-center text-[11px] font-semibold text-slate-400">
+                            Arraste tarefas para aqui
+                          </div>
+                        ) : (
+                          columnItems.map((item) => {
+                            const isBeingDragged = draggedItemIdStr === item.id;
+
+                            return (
+                              <div
+                                key={item.id}
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData('text/plain', item.id);
+                                  e.dataTransfer.effectAllowed = 'move';
+                                  setDraggedItemIdStr(item.id);
+                                }}
+                                onDragEnd={() => setDraggedItemIdStr(null)}
+                                className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 shadow-sm hover:shadow-md transition-all space-y-2 cursor-grab active:cursor-grabbing ${
+                                  isBeingDragged ? 'opacity-40 border-dashed border-indigo-500 scale-95' : 'hover:border-indigo-500/40'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span
+                                    className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${getOriginBadgeClass(
+                                      item.moduleOrigin
+                                    )}`}
+                                  >
+                                    {getOriginIcon(item.moduleOrigin)}
+                                    {item.moduleOrigin}
+                                  </span>
+
+                                  <div className="flex items-center gap-1">
+                                    <GripVertical className="w-3.5 h-3.5 text-slate-400 opacity-60 hover:opacity-100" />
+                                    <button
+                                      onClick={() => handleToggleItemCompletion(item)}
+                                      className="text-[10px] text-indigo-500 hover:underline font-semibold"
+                                    >
+                                      Mudar
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <h5 className="text-xs font-extrabold text-slate-900 dark:text-slate-100 leading-snug">
+                                  {item.title}
+                                </h5>
+
+                                <div className="flex flex-col space-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
+                                  <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                                    <span className="font-mono flex items-center gap-1 font-bold">
+                                      <Clock className="w-3 h-3 text-indigo-500" />
+                                      {item.startTime} - {item.endTime}
+                                    </span>
+                                    <span className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-bold">
+                                      {item.categoryTag}
+                                    </span>
+                                  </div>
+
+                                  {item.originalType === 'VISUAL_TASK' && (
+                                    <div className="flex items-center justify-between pt-1 text-[9px]">
+                                      <span className="text-slate-400 font-mono">Ajustar:</span>
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleAdjustItemDuration(item.id, -30);
+                                          }}
+                                          className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded"
+                                          title="-30 min"
+                                        >
+                                          -30m
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleAdjustItemDuration(item.id, 30);
+                                          }}
+                                          className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded"
+                                          title="+30 min"
+                                        >
+                                          +30m
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleAdjustItemDuration(item.id, 60);
+                                          }}
+                                          className="px-1.5 py-0.5 bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/20 font-bold rounded"
+                                          title="+1 hora"
+                                        >
+                                          +1h
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 2.5 GRANULARITY VIEW: SEMANA (WEEKLY 7-COLUMNS GRID)                      */}
+      {/* ========================================================================= */}
+      {timeGranularity === 'SEMANA' && (() => {
+        const weekDays = getWeekDays(selectedDateISO);
+        return (
+          <div className="space-y-6">
+            {/* Week Stepper Header */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm dark:shadow-md flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleStepWeek(-1)}
+                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-200 transition"
+                  title="Semana Anterior"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold">
+                    Agenda Semanal (7 Dias Interativos)
+                  </p>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">
+                    Semana de {formatBRDate(weekDays[0].dateISO)} a {formatBRDate(weekDays[6].dateISO)}
+                  </h3>
+                </div>
+
+                <button
+                  onClick={() => handleStepWeek(1)}
+                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-200 transition"
+                  title="Próxima Semana"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setSelectedDateISO(todayISO);
+                    setCurrentMonth(new Date().getMonth());
+                    setCurrentYear(new Date().getFullYear());
+                  }}
+                  className="ml-2 px-3 py-1.5 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition"
+                >
+                  Semana Atual
+                </button>
+              </div>
+
+              <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <GripVertical className="w-4 h-4 text-indigo-500" />
+                Arraste os cartões de tarefa para alterar o dia da semana ou use os botões para ajustar a duração.
+              </div>
+            </div>
+
+            {/* 7 Columns Grid for Weekdays */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-3">
+              {weekDays.map((day) => {
+                const dayItems = filteredItemsByOrigin.filter(
+                  (item) => item.startDate <= day.dateISO && item.endDate >= day.dateISO
+                );
+                const isOver = overWeekDayISO === day.dateISO;
 
                 return (
                   <div
-                    key={columnStatus}
-                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 space-y-3"
+                    key={day.dateISO}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      setOverWeekDayISO(day.dateISO);
+                    }}
+                    onDragLeave={() => setOverWeekDayISO(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const droppedId = e.dataTransfer.getData('text/plain') || draggedItemIdStr;
+                      if (droppedId) {
+                        handleDropItemToDate(droppedId, day.dateISO);
+                      }
+                      setOverWeekDayISO(null);
+                      setDraggedItemIdStr(null);
+                    }}
+                    className={`bg-white dark:bg-slate-900 border rounded-2xl p-3 flex flex-col space-y-3 min-h-[380px] transition-all ${
+                      isOver
+                        ? 'border-indigo-500 ring-2 ring-indigo-500/40 bg-indigo-500/5 dark:bg-indigo-500/10'
+                        : day.isSelected
+                        ? 'border-indigo-600 dark:border-indigo-500 shadow-md ring-1 ring-indigo-500/20'
+                        : day.isToday
+                        ? 'border-emerald-500 bg-emerald-500/5'
+                        : 'border-slate-200 dark:border-slate-800'
+                    }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                        <Circle className="w-3.5 h-3.5 text-indigo-500" />
-                        {columnStatus} ({columnItems.length})
-                      </h4>
+                    {/* Header for Day Column */}
+                    <div
+                      onClick={() => {
+                        setSelectedDateISO(day.dateISO);
+                        setTimeGranularity('DIA');
+                      }}
+                      className="cursor-pointer flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 hover:opacity-80 transition"
+                      title="Clique para abrir detalhes do dia"
+                    >
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase text-slate-400 block">
+                          {day.dayName}
+                        </span>
+                        <span
+                          className={`text-sm font-black ${
+                            day.isToday ? 'text-emerald-500' : 'text-slate-900 dark:text-slate-100'
+                          }`}
+                        >
+                          {day.dayNum} {day.monthName.substring(0, 3)}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                        {dayItems.length}
+                      </span>
                     </div>
 
-                    <div className="space-y-3 min-h-[200px]">
-                      {columnItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 shadow-sm space-y-2"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span
-                              className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${getOriginBadgeClass(
-                                item.moduleOrigin
-                              )}`}
-                            >
-                              {getOriginIcon(item.moduleOrigin)}
-                              {item.moduleOrigin}
-                            </span>
-
-                            <button
-                              onClick={() => handleToggleItemCompletion(item)}
-                              className="text-[10px] text-indigo-500 hover:underline font-semibold"
-                            >
-                              Mudar Status
-                            </button>
-                          </div>
-
-                          <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                            {item.title}
-                          </h5>
-
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                            🕒 {item.startTime} - {item.endTime}
-                          </p>
+                    {/* Task list for this day */}
+                    <div className="space-y-2 flex-1 overflow-y-auto max-h-[480px] pr-0.5">
+                      {dayItems.length === 0 ? (
+                        <div className="h-28 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-center text-[10px] text-slate-400 text-center p-2">
+                          Sem tarefas
                         </div>
-                      ))}
+                      ) : (
+                        dayItems.map((item) => (
+                          <div
+                            key={item.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', item.id);
+                              e.dataTransfer.effectAllowed = 'move';
+                              setDraggedItemIdStr(item.id);
+                            }}
+                            onDragEnd={() => setDraggedItemIdStr(null)}
+                            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-2.5 text-xs space-y-1.5 shadow-sm hover:border-indigo-500 cursor-grab active:cursor-grabbing transition"
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span
+                                className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded border flex items-center gap-1 ${getOriginBadgeClass(
+                                  item.moduleOrigin
+                                )}`}
+                              >
+                                {getOriginIcon(item.moduleOrigin)}
+                                {item.moduleOrigin}
+                              </span>
+                              <GripVertical className="w-3.5 h-3.5 text-slate-400 opacity-60" />
+                            </div>
+
+                            <h5 className="font-extrabold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2">
+                              {item.title}
+                            </h5>
+
+                            <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-indigo-500" />
+                              {item.startTime} - {item.endTime}
+                            </div>
+
+                            {/* Duration Adjuster */}
+                            {item.originalType === 'VISUAL_TASK' && (
+                              <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 dark:border-slate-800/60 text-[9px]">
+                                <span className="text-slate-400 font-mono">Tempo:</span>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAdjustItemDuration(item.id, -30);
+                                    }}
+                                    className="px-1 py-0.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 rounded font-bold"
+                                    title="-30 min"
+                                  >
+                                    -30m
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAdjustItemDuration(item.id, 30);
+                                    }}
+                                    className="px-1 py-0.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 rounded font-bold"
+                                    title="+30 min"
+                                  >
+                                    +30m
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAdjustItemDuration(item.id, 60);
+                                    }}
+                                    className="px-1 py-0.5 bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/20 font-bold rounded"
+                                    title="+1 hora"
+                                  >
+                                    +1h
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* 3. GRANULARITY VIEW: MÊS (MONTH CALENDAR GRID)                            */}
@@ -1092,6 +1827,7 @@ export const RitVidaVisual: React.FC = () => {
 
               const isTodayCell = cell.dateISO === todayISO;
               const isSelectedCell = cell.dateISO === selectedDateISO;
+              const isOverCell = overMonthDateISO === cell.dateISO;
 
               return (
                 <div
@@ -1100,8 +1836,25 @@ export const RitVidaVisual: React.FC = () => {
                     setSelectedDateISO(cell.dateISO);
                     setTimeGranularity('DIA');
                   }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setOverMonthDateISO(cell.dateISO);
+                  }}
+                  onDragLeave={() => setOverMonthDateISO(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const droppedId = e.dataTransfer.getData('text/plain') || draggedItemIdStr;
+                    if (droppedId) {
+                      handleDropItemToDate(droppedId, cell.dateISO);
+                    }
+                    setOverMonthDateISO(null);
+                    setDraggedItemIdStr(null);
+                  }}
                   className={`min-h-[90px] md:min-h-[110px] p-2 rounded-2xl border transition cursor-pointer flex flex-col justify-between ${
-                    isSelectedCell
+                    isOverCell
+                      ? 'border-indigo-500 ring-2 ring-indigo-500/50 bg-indigo-500/10 dark:bg-indigo-500/20'
+                      : isSelectedCell
                       ? 'border-indigo-600 bg-indigo-500/10 dark:bg-indigo-500/20 shadow-md'
                       : isTodayCell
                       ? 'border-emerald-500/60 bg-emerald-500/5 dark:bg-emerald-500/10'
@@ -1133,7 +1886,13 @@ export const RitVidaVisual: React.FC = () => {
                     {dayItems.slice(0, 3).map((item) => (
                       <div
                         key={item.id}
-                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded truncate border ${getOriginBadgeClass(
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', item.id);
+                          setDraggedItemIdStr(item.id);
+                        }}
+                        onDragEnd={() => setDraggedItemIdStr(null)}
+                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded truncate border cursor-grab active:cursor-grabbing ${getOriginBadgeClass(
                           item.moduleOrigin
                         )}`}
                       >
@@ -1180,7 +1939,7 @@ export const RitVidaVisual: React.FC = () => {
             </div>
 
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-              Clique em um mês para abrir o calendário completo
+              Arraste tarefas para um mês ou clique para expandir
             </span>
           </div>
 
@@ -1192,6 +1951,7 @@ export const RitVidaVisual: React.FC = () => {
               const focovestCount = monthItems.filter((i) => i.moduleOrigin === 'FOCOVEST').length;
               const meiCount = monthItems.filter((i) => i.moduleOrigin === 'MEI').length;
               const ritvidaCount = monthItems.filter((i) => i.moduleOrigin === 'RITVIDA').length;
+              const isYearOver = overYearMonthIdx === mIdx;
 
               return (
                 <div
@@ -1200,7 +1960,26 @@ export const RitVidaVisual: React.FC = () => {
                     setCurrentMonth(mIdx);
                     setTimeGranularity('MES');
                   }}
-                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 hover:border-indigo-500 transition cursor-pointer space-y-3 shadow-sm hover:shadow-md"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setOverYearMonthIdx(mIdx);
+                  }}
+                  onDragLeave={() => setOverYearMonthIdx(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const droppedId = e.dataTransfer.getData('text/plain') || draggedItemIdStr;
+                    if (droppedId) {
+                      handleDropItemToMonth(droppedId, currentYear, mIdx);
+                    }
+                    setOverYearMonthIdx(null);
+                    setDraggedItemIdStr(null);
+                  }}
+                  className={`border rounded-2xl p-4 transition cursor-pointer space-y-3 shadow-sm hover:shadow-md ${
+                    isYearOver
+                      ? 'border-indigo-500 ring-2 ring-indigo-500/50 bg-indigo-500/10 dark:bg-indigo-500/20'
+                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-indigo-500'
+                  }`}
                 >
                   <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
                     <h4 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
