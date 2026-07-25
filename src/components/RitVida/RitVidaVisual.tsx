@@ -81,11 +81,37 @@ export const RitVidaVisual: React.FC = () => {
   const [originFilter, setOriginFilter] = useState<'TODOS' | 'FOCOVEST' | 'RITVIDA' | 'MEI'>('TODOS');
 
   // Date Navigation State
-  const todayISO = new Date().toISOString().split('T')[0];
+  const getTodayBRISO = () => {
+    try {
+      return new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+    } catch {
+      return '2026-07-24';
+    }
+  };
+
+  const getTodayBRMonth = () => {
+    try {
+      const mStr = new Date().toLocaleDateString('en-US', { timeZone: 'America/Sao_Paulo', month: 'numeric' });
+      return parseInt(mStr, 10) - 1;
+    } catch {
+      return 6;
+    }
+  };
+
+  const getTodayBRYear = () => {
+    try {
+      const yStr = new Date().toLocaleDateString('en-US', { timeZone: 'America/Sao_Paulo', year: 'numeric' });
+      return parseInt(yStr, 10);
+    } catch {
+      return 2026;
+    }
+  };
+
+  const todayISO = getTodayBRISO();
   const [selectedDateISO, setSelectedDateISO] = useState<string>(todayISO);
 
-  const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState<number>(getTodayBRMonth());
+  const [currentYear, setCurrentYear] = useState<number>(getTodayBRYear());
 
   // Modal State
   const [editingTask, setEditingTask] = useState<VisualTask | null>(null);
@@ -1605,8 +1631,8 @@ export const RitVidaVisual: React.FC = () => {
                 <button
                   onClick={() => {
                     setSelectedDateISO(todayISO);
-                    setCurrentMonth(new Date().getMonth());
-                    setCurrentYear(new Date().getFullYear());
+                    setCurrentMonth(getTodayBRMonth());
+                    setCurrentYear(getTodayBRYear());
                   }}
                   className="ml-2 px-3 py-1.5 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition"
                 >
