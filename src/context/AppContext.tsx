@@ -218,6 +218,12 @@ interface AppContextType {
   updateVisualTask: (task: VisualTask) => void;
   deleteVisualTask: (id: number) => void;
 
+  // Time Travel (Undo / Redo)
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+
   // Portfolio Items
   portfolioItems: PortfolioItem[];
   addPortfolioItem: (title: string, description: string, iconType: 'design' | 'photo' | 'integration' | 'manufacturing') => void;
@@ -975,6 +981,132 @@ Para obter uma avaliação minuciosa com nota de 0 a 1000 nas 5 Competências do
 
   const deletePortfolioItem = (id: number) => setPortfolioItems((prev) => prev.filter((p) => p.id !== id));
 
+  // =========================================================================
+  // TIME TRAVEL ENGINE (UNDO / REDO / CTRL+Z / CTRL+Y)
+  // =========================================================================
+  const [historyStack, setHistoryStack] = useState<
+    Array<{
+      visualTasks: VisualTask[];
+      customCronogramaItems: CustomCronogramaItem[];
+      projects: RitVidaProject[];
+      meiInvoices: MeiInvoice[];
+      meiTransactions: MeiTransaction[];
+      gymWorkouts: GymWorkout[];
+    }>
+  >(() => [
+    {
+      visualTasks,
+      customCronogramaItems,
+      projects,
+      meiInvoices,
+      meiTransactions,
+      gymWorkouts
+    }
+  ]);
+  const [historyIndex, setHistoryIndex] = useState<number>(0);
+  const isTimeTravelingRef = React.useRef(false);
+
+  useEffect(() => {
+    if (isTimeTravelingRef.current) {
+      isTimeTravelingRef.current = false;
+      return;
+    }
+
+    const currentSnap = {
+      visualTasks,
+      customCronogramaItems,
+      projects,
+      meiInvoices,
+      meiTransactions,
+      gymWorkouts
+    };
+
+    const lastSnap = historyStack[historyIndex];
+    if (
+      lastSnap &&
+      JSON.stringify(lastSnap.visualTasks) === JSON.stringify(visualTasks) &&
+      JSON.stringify(lastSnap.customCronogramaItems) === JSON.stringify(customCronogramaItems) &&
+      JSON.stringify(lastSnap.projects) === JSON.stringify(projects) &&
+      JSON.stringify(lastSnap.meiInvoices) === JSON.stringify(meiInvoices) &&
+      JSON.stringify(lastSnap.meiTransactions) === JSON.stringify(meiTransactions) &&
+      JSON.stringify(lastSnap.gymWorkouts) === JSON.stringify(gymWorkouts)
+    ) {
+      return;
+    }
+
+    const nextStack = [...historyStack.slice(0, historyIndex + 1), currentSnap];
+    setHistoryStack(nextStack);
+    setHistoryIndex(nextStack.length - 1);
+  }, [visualTasks, customCronogramaItems, projects, meiInvoices, meiTransactions, gymWorkouts]);
+
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < historyStack.length - 1;
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      const prevIdx = historyIndex - 1;
+      const snap = historyStack[prevIdx];
+      if (snap) {
+        isTimeTravelingRef.current = true;
+        setHistoryIndex(prevIdx);
+        setVisualTasks(snap.visualTasks);
+        setCustomCronogramaItems(snap.customCronogramaItems);
+        setProjects(snap.projects);
+        setMeiInvoices(snap.meiInvoices);
+        setMeiTransactions(snap.meiTransactions);
+        setGymWorkouts(snap.gymWorkouts);
+      }
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex < historyStack.length - 1) {
+      const nextIdx = historyIndex + 1;
+      const snap = historyStack[nextIdx];
+      if (snap) {
+        isTimeTravelingRef.current = true;
+        setHistoryIndex(nextIdx);
+        setVisualTasks(snap.visualTasks);
+        setCustomCronogramaItems(snap.customCronogramaItems);
+        setProjects(snap.projects);
+        setMeiInvoices(snap.meiInvoices);
+        setMeiTransactions(snap.meiTransactions);
+        setGymWorkouts(snap.gymWorkouts);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeElem = document.activeElement;
+      const isTyping =
+        activeElem &&
+        (activeElem.tagName === 'INPUT' ||
+          activeElem.tagName === 'TEXTAREA' ||
+          (activeElem as HTMLElement).isContentEditable);
+
+      const isCmdOrCtrl = e.ctrlKey || e.metaKey;
+      if (!isCmdOrCtrl) return;
+
+      const key = e.key.toLowerCase();
+
+      if ((key === 'z' && e.shiftKey) || key === 'y') {
+        if (!isTyping) {
+          e.preventDefault();
+          redo();
+        }
+      } else if (key === 'z' && !e.shiftKey) {
+        if (!isTyping) {
+          e.preventDefault();
+          undo();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [historyIndex, historyStack]);
+
   return (
     <AppContext.Provider
       value={{
@@ -1102,6 +1234,11 @@ Para obter uma avaliação minuciosa com nota de 0 a 1000 nas 5 Competências do
         insertVisualTask,
         updateVisualTask,
         deleteVisualTask,
+
+        undo,
+        redo,
+        canUndo,
+        canRedo,
 
         portfolioItems,
         addPortfolioItem,

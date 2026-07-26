@@ -28,7 +28,10 @@ import {
   Layers,
   ArrowRight,
   GripVertical,
-  Minus
+  Minus,
+  AlertTriangle,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 
 const MONTH_NAMES_PT = [
@@ -60,25 +63,40 @@ export const RitVidaVisual: React.FC = () => {
     deleteVisualTask,
     updateVisualTask,
     customCronogramaItems,
+    deleteCustomCronogramaItem,
     toggleCustomCronogramaItem,
     projects,
     updateProject,
+    deleteProject,
     meiInvoices,
     updateMeiInvoice,
+    deleteMeiInvoice,
     meiTransactions,
     updateMeiTransaction,
+    deleteMeiTransaction,
     gymWorkouts,
+    deleteGymWorkout,
     toggleGymWorkoutStatus,
     setActiveModule,
     setSelectedFocoVestTab,
     setSelectedRitVidaTab,
-    setSelectedMeiTab
+    setSelectedMeiTab,
+    undo,
+    redo,
+    canUndo,
+    canRedo
   } = useApp();
 
   // Granularities & Layout Views
   const [timeGranularity, setTimeGranularity] = useState<'DIA' | 'SEMANA' | 'MES' | 'ANO'>('DIA');
   const [layoutView, setLayoutView] = useState<'TIMELINE' | 'GANTT' | 'KANBAN'>('TIMELINE');
   const [originFilter, setOriginFilter] = useState<'TODOS' | 'FOCOVEST' | 'RITVIDA' | 'MEI'>('TODOS');
+
+  // Delete & Batch Mode States
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<UnifiedAgendaItem | null>(null);
+  const [isBatchDeleteMode, setIsBatchDeleteMode] = useState(false);
+  const [selectedBatchItemIds, setSelectedBatchItemIds] = useState<string[]>([]);
+  const [isConfirmingBatchDelete, setIsConfirmingBatchDelete] = useState(false);
 
   // Date Navigation State
   const getTodayBRISO = () => {
@@ -509,6 +527,103 @@ export const RitVidaVisual: React.FC = () => {
     }
   };
 
+  // Delete & Edit Handlers
+  const handleRequestDelete = (item: UnifiedAgendaItem) => {
+    setDeleteConfirmItem(item);
+  };
+
+  const executeDeleteItem = (item: UnifiedAgendaItem) => {
+    if (item.originalType === 'VISUAL_TASK') {
+      deleteVisualTask(item.rawObject.id);
+    } else if (item.originalType === 'CRONOGRAMA') {
+      deleteCustomCronogramaItem(item.rawObject.id);
+    } else if (item.originalType === 'PROJECT') {
+      deleteProject(item.rawObject.id);
+    } else if (item.originalType === 'MEI_INVOICE') {
+      deleteMeiInvoice(item.rawObject.id);
+    } else if (item.originalType === 'MEI_TX') {
+      deleteMeiTransaction(item.rawObject.id);
+    } else if (item.originalType === 'GYM') {
+      deleteGymWorkout(item.rawObject.id);
+    }
+  };
+
+  const handleConfirmSingleDelete = () => {
+    if (!deleteConfirmItem) return;
+    executeDeleteItem(deleteConfirmItem);
+    setDeleteConfirmItem(null);
+  };
+
+  const handleStartBatchFromConfirm = () => {
+    if (deleteConfirmItem) {
+      setSelectedBatchItemIds([deleteConfirmItem.id]);
+    }
+    setDeleteConfirmItem(null);
+    setIsBatchDeleteMode(true);
+  };
+
+  const handleToggleBatchSelection = (itemId: string) => {
+    setSelectedBatchItemIds((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+    );
+  };
+
+  const handleToggleSelectAllBatch = () => {
+    const currentViewIds = itemsForSelectedDay.map((i) => i.id);
+    const isAllSelected = currentViewIds.length > 0 && currentViewIds.every((id) => selectedBatchItemIds.includes(id));
+    if (isAllSelected) {
+      setSelectedBatchItemIds([]);
+    } else {
+      setSelectedBatchItemIds(currentViewIds);
+    }
+  };
+
+  const handleConfirmBatchDelete = () => {
+    selectedBatchItemIds.forEach((id) => {
+      const item = allUnifiedItems.find((i) => i.id === id);
+      if (item) {
+        executeDeleteItem(item);
+      }
+    });
+    setSelectedBatchItemIds([]);
+    setIsBatchDeleteMode(false);
+    setIsConfirmingBatchDelete(false);
+  };
+
+  const handleOpenEditItem = (item: UnifiedAgendaItem) => {
+    if (item.originalType === 'VISUAL_TASK') {
+      handleOpenEditModal(item.rawObject as VisualTask);
+    } else {
+      const tempTask: VisualTask = {
+        id: item.rawObject?.id || Math.floor(Math.random() * 1000000),
+        title: item.title,
+        function: 'Geral',
+        tag: item.categoryTag || 'Urgente',
+        startDate: item.startDate || todayISO,
+        startTime: item.startTime || '08:00',
+        endDate: item.endDate || item.startDate || todayISO,
+        endTime: item.endTime || '10:00',
+        status: item.status || 'A Fazer',
+        checklistRaw: '',
+        startHour: parseInt((item.startTime || '08').split(':')[0], 10) || 8,
+        durationHours: 1,
+        moduleOrigin: item.moduleOrigin
+      };
+      setEditingTask(tempTask);
+      setTitle(item.title);
+      setModuleChoice(item.moduleOrigin as any);
+      setFunc('Geral');
+      setTag(item.categoryTag || 'Urgente');
+      setStartDateInput(item.startDate || todayISO);
+      setEndDateInput(item.endDate || item.startDate || todayISO);
+      setStartTimeInput(item.startTime || '08:00');
+      setEndTimeInput(item.endTime || '10:00');
+      setStatus(item.status || 'A Fazer');
+      setChecklistInput('');
+      setIsModalOpen(true);
+    }
+  };
+
   // Modal handlers
   const handleOpenAddModal = (presetHour?: number) => {
     setEditingTask(null);
@@ -863,6 +978,28 @@ export const RitVidaVisual: React.FC = () => {
               </button>
             </div>
 
+            {/* Time Travel Controls (Voltar no tempo / Ir para o futuro) */}
+            <div className="bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-1 shadow-inner">
+              <button
+                onClick={undo}
+                disabled={!canUndo}
+                className="px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+                title="Voltar no tempo / Desfazer alteração (CTRL+Z)"
+              >
+                <Undo2 className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Voltar (Ctrl+Z)</span>
+              </button>
+              <button
+                onClick={redo}
+                disabled={!canRedo}
+                className="px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+                title="Ir para o futuro / Refazer alteração (CTRL+Y)"
+              >
+                <Redo2 className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Futuro (Ctrl+Y)</span>
+              </button>
+            </div>
+
             <button
               onClick={() => handleOpenAddModal()}
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition shadow-lg shadow-indigo-600/20"
@@ -993,12 +1130,68 @@ export const RitVidaVisual: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Daily Interactive Task Cards List */}
               <div className="lg:col-span-2 space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                     <CheckSquare className="w-5 h-5 text-indigo-500" />
                     Tarefas Agendadas ({itemsForSelectedDay.length})
                   </h3>
+
+                  {itemsForSelectedDay.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setIsBatchDeleteMode(!isBatchDeleteMode);
+                        if (isBatchDeleteMode) setSelectedBatchItemIds([]);
+                      }}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 ${
+                        isBatchDeleteMode
+                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300'
+                          : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      {isBatchDeleteMode ? 'Sair da Seleção' : 'Excluir em Lote / Selecionar Vários'}
+                    </button>
+                  )}
                 </div>
+
+                {/* Batch selection toolbar */}
+                {isBatchDeleteMode && (
+                  <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 animate-fadeIn">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={handleToggleSelectAllBatch}
+                        className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-indigo-600 transition"
+                      >
+                        <CheckSquare className="w-4 h-4 text-indigo-500" />
+                        {itemsForSelectedDay.length > 0 && itemsForSelectedDay.every((i) => selectedBatchItemIds.includes(i.id))
+                          ? 'Desmarcar Todos'
+                          : 'Selecionar Todos'}
+                      </button>
+                      <span className="text-xs font-extrabold text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-900/80 px-2.5 py-1 rounded-full">
+                        {selectedBatchItemIds.length} selecionada(s)
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={selectedBatchItemIds.length === 0}
+                        onClick={() => setIsConfirmingBatchDelete(true)}
+                        className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-extrabold rounded-xl transition shadow-sm flex items-center gap-1.5"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Excluir Selecionadas ({selectedBatchItemIds.length})
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsBatchDeleteMode(false);
+                          setSelectedBatchItemIds([]);
+                        }}
+                        className="px-3 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {itemsForSelectedDay.length === 0 ? (
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 text-center space-y-3">
@@ -1015,89 +1208,117 @@ export const RitVidaVisual: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {itemsForSelectedDay.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`bg-white dark:bg-slate-900 border ${
-                          item.status === 'Concluído'
-                            ? 'border-emerald-500/30 dark:border-emerald-500/20 opacity-80'
-                            : 'border-slate-200 dark:border-slate-800'
-                        } rounded-2xl p-4 transition shadow-sm dark:shadow-md space-y-3`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-3">
-                            <button
-                              onClick={() => handleToggleItemCompletion(item)}
-                              className={`mt-0.5 p-1 rounded-lg transition ${
-                                item.status === 'Concluído'
-                                  ? 'bg-emerald-500 text-white'
-                                  : 'border border-slate-300 dark:border-slate-700 text-slate-400 hover:text-emerald-500'
-                              }`}
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
+                    {itemsForSelectedDay.map((item) => {
+                      const isBatchSelected = selectedBatchItemIds.includes(item.id);
 
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span
-                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${getOriginBadgeClass(
-                                    item.moduleOrigin
-                                  )}`}
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => {
+                            if (isBatchDeleteMode) handleToggleBatchSelection(item.id);
+                          }}
+                          className={`bg-white dark:bg-slate-900 border ${
+                            isBatchDeleteMode && isBatchSelected
+                              ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/50 dark:bg-rose-950/20'
+                              : item.status === 'Concluído'
+                              ? 'border-emerald-500/30 dark:border-emerald-500/20 opacity-80'
+                              : 'border-slate-200 dark:border-slate-800'
+                          } rounded-2xl p-4 transition shadow-sm dark:shadow-md space-y-3 ${
+                            isBatchDeleteMode ? 'cursor-pointer' : ''
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3">
+                              {isBatchDeleteMode ? (
+                                <input
+                                  type="checkbox"
+                                  checked={isBatchSelected}
+                                  onChange={() => handleToggleBatchSelection(item.id)}
+                                  className="mt-1 w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 cursor-pointer"
+                                />
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleItemCompletion(item);
+                                  }}
+                                  className={`mt-0.5 p-1 rounded-lg transition ${
+                                    item.status === 'Concluído'
+                                      ? 'bg-emerald-500 text-white'
+                                      : 'border border-slate-300 dark:border-slate-700 text-slate-400 hover:text-emerald-500'
+                                  }`}
                                 >
-                                  {getOriginIcon(item.moduleOrigin)}
-                                  {item.moduleOrigin}
-                                </span>
-                                <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full">
-                                  {item.categoryTag}
-                                </span>
-                              </div>
-
-                              <h4
-                                className={`text-sm font-extrabold text-slate-900 dark:text-slate-100 mt-1 ${
-                                  item.status === 'Concluído' ? 'line-through text-slate-400 dark:text-slate-500' : ''
-                                }`}
-                              >
-                                {item.title}
-                              </h4>
-
-                              {item.details && (
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                  {item.details}
-                                </p>
+                                  <Check className="w-4 h-4" />
+                                </button>
                               )}
+
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span
+                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${getOriginBadgeClass(
+                                      item.moduleOrigin
+                                    )}`}
+                                  >
+                                    {getOriginIcon(item.moduleOrigin)}
+                                    {item.moduleOrigin}
+                                  </span>
+                                  <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full">
+                                    {item.categoryTag}
+                                  </span>
+                                </div>
+
+                                <h4
+                                  className={`text-sm font-extrabold text-slate-900 dark:text-slate-100 mt-1 ${
+                                    item.status === 'Concluído' ? 'line-through text-slate-400 dark:text-slate-500' : ''
+                                  }`}
+                                >
+                                  {item.title}
+                                </h4>
+
+                                {item.details && (
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                    {item.details}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              {/* Switch to originating module page */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleJumpToModule(item.moduleOrigin, item.originalType);
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-indigo-500 rounded-lg transition"
+                                title="Ir para a página de origem"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </button>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEditItem(item);
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-amber-500 rounded-lg transition"
+                                title="Editar Tarefa"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRequestDelete(item);
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition"
+                                title="Excluir Tarefa"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
-
-                          <div className="flex items-center gap-1 shrink-0">
-                            {/* Switch to originating module page */}
-                            <button
-                              onClick={() => handleJumpToModule(item.moduleOrigin, item.originalType)}
-                              className="p-1.5 text-slate-400 hover:text-indigo-500 rounded-lg transition"
-                              title="Ir para a página de origem"
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </button>
-
-                            {item.originalType === 'VISUAL_TASK' && (
-                              <>
-                                <button
-                                  onClick={() => handleOpenEditModal(item.rawObject as VisualTask)}
-                                  className="p-1.5 text-slate-400 hover:text-amber-500 rounded-lg transition"
-                                  title="Editar"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => deleteVisualTask(item.rawObject.id)}
-                                  className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition"
-                                  title="Excluir"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
 
                         {/* Date Range & Time Badge + Duration Controls */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800/60">
@@ -1151,7 +1372,8 @@ export const RitVidaVisual: React.FC = () => {
                           </span>
                         </div>
                       </div>
-                    ))}
+                    );
+                  })}
                   </div>
                 )}
               </div>
@@ -1227,6 +1449,26 @@ export const RitVidaVisual: React.FC = () => {
                                   </div>
                                   <div className="flex items-center gap-1 shrink-0">
                                     <span className="text-[9px] opacity-80">{ht.startTime}</span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenEditItem(ht);
+                                      }}
+                                      className="p-0.5 hover:text-amber-400 rounded transition"
+                                      title="Editar"
+                                    >
+                                      <Edit3 className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRequestDelete(ht);
+                                      }}
+                                      className="p-0.5 hover:text-rose-400 rounded transition"
+                                      title="Excluir"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
                                     {ht.originalType === 'VISUAL_TASK' && (
                                       <div className="flex items-center gap-0.5 ml-1">
                                         <button
@@ -1516,13 +1758,27 @@ export const RitVidaVisual: React.FC = () => {
                                   </span>
 
                                   <div className="flex items-center gap-1">
-                                    <GripVertical className="w-3.5 h-3.5 text-slate-400 opacity-60 hover:opacity-100" />
                                     <button
-                                      onClick={() => handleToggleItemCompletion(item)}
-                                      className="text-[10px] text-indigo-500 hover:underline font-semibold"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenEditItem(item);
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-amber-500 rounded transition"
+                                      title="Editar"
                                     >
-                                      Mudar
+                                      <Edit3 className="w-3.5 h-3.5" />
                                     </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRequestDelete(item);
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-rose-500 rounded transition"
+                                      title="Excluir"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <GripVertical className="w-3.5 h-3.5 text-slate-400 opacity-60 hover:opacity-100" />
                                   </div>
                                 </div>
 
@@ -2209,6 +2465,107 @@ export const RitVidaVisual: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 6. CONFIRMATION MODAL - SINGLE ITEM DELETE                                */}
+      {/* ========================================================================= */}
+      {deleteConfirmItem && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-fadeIn">
+            <div className="flex items-center gap-3 text-rose-500">
+              <div className="p-3 bg-rose-500/10 rounded-2xl border border-rose-500/20">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">Confirmar Exclusão</h3>
+                <p className="text-xs text-slate-400">Tem certeza que deseja excluir esta tarefa?</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-4 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getOriginBadgeClass(deleteConfirmItem.moduleOrigin)}`}>
+                  {deleteConfirmItem.moduleOrigin}
+                </span>
+                <span className="text-[10px] font-bold bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full">
+                  {deleteConfirmItem.categoryTag}
+                </span>
+              </div>
+              <h4 className="text-sm font-extrabold text-white pt-1">{deleteConfirmItem.title}</h4>
+              <p className="text-xs text-slate-400 font-mono">Data: {formatBRDate(deleteConfirmItem.startDate)} ({deleteConfirmItem.startTime} - {deleteConfirmItem.endTime})</p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={handleStartBatchFromConfirm}
+                className="w-full sm:w-auto px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition flex items-center justify-center gap-1.5"
+              >
+                <Layers className="w-3.5 h-3.5" /> Selecionar Mais Tarefas
+              </button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmItem(null)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSingleDelete}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-rose-600/20"
+                >
+                  Confirmar Exclusão
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 7. CONFIRMATION MODAL - BATCH DELETE                                      */}
+      {/* ========================================================================= */}
+      {isConfirmingBatchDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-fadeIn">
+            <div className="flex items-center gap-3 text-rose-500">
+              <div className="p-3 bg-rose-500/10 rounded-2xl border border-rose-500/20">
+                <Trash2 className="w-6 h-6 text-rose-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">Confirmar Exclusão em Lote</h3>
+                <p className="text-xs text-slate-400">
+                  Você está prestes a excluir <strong className="text-rose-400">{selectedBatchItemIds.length}</strong> tarefas selecionadas.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-400 bg-slate-950/80 border border-slate-800 p-3 rounded-2xl">
+              Esta ação removerá permanentemente as tarefas selecionadas do seu sistema. Deseja prosseguir?
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsConfirmingBatchDelete(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBatchDelete}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-rose-600/20 flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" /> Excluir {selectedBatchItemIds.length} Tarefa(s)
+              </button>
+            </div>
           </div>
         </div>
       )}
